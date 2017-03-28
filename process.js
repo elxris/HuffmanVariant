@@ -31,22 +31,38 @@ let sendMessage = function ({to = 0, data = {}}) {
   process.send({to, data})
 }
 
-function resolveAfter2Seconds (x) {
-  return new Promise(resolve => {
-    setTimeout(() => {
-      resolve(x)
-    }, 2000)
-  })
-}
-
-(async function main () {
+;(async function main () {
   console.log(`Hello from ${RANK}-${NUM}`)
-  await resolveAfter2Seconds()
-  let to = (RANK + 1) % NUM
-  sendMessage({to})
-  sendMessage({to})
-  console.log(`${RANK}-${NUM}`, await (waitMessage.next().value))
-  console.log(`${RANK}-${NUM}`, await (waitMessage.next().value))
+  let Google = await readFile('./files/Google.htm')
+  if (RANK === 0) {
+    let count = 0
+    for (let n = 2; n <= 16; n++) {
+      for (let offset = 0; offset < n; offset++) {
+        let p = (count++ % (NUM - 1)) + 1
+        sendMessage({to: p, data: {task: 'getTable', n, offset}})
+      }
+    }
+    for (let i = 1; i < NUM; i++) {
+      sendMessage({to: i, data: {task: 'quit'}})
+    }
+    for (let i = 1; i < NUM; i++) {
+      await (waitMessage.next().value)
+    }
+  } else {
+    while (true) {
+      let data = (await (waitMessage.next().value)).data
+      let {task} = data
+      if (task === 'quit') {
+        sendMessage({to: 0})
+        break
+      } else if (task === 'getTable') {
+        let {n, offset} = data
+        let table = await getFrequencyTable(Google, n, offset)
+        console.log(table)
+        sendMessage({to: 0})
+      }
+    }
+  }
   exit()
 })().catch(console.error)
 

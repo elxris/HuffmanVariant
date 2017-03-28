@@ -11,7 +11,7 @@ for (let cid = 0; cid < NUM; cid++) {
   })
   childs[cid] = child
   child.on('message', ({to = 0, data}) => {
-    childs[to].send(data, (error) => {
+    childs[to].send({data, from: cid}, (error) => {
       if (error) return console.error(`Error al enviar el mensaje a ${to}`)
     })
   })
