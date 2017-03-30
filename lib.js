@@ -2,6 +2,7 @@
 
 let {BitStream} = require('bit-buffer')
 let fs = require('fs')
+let _ = require('lodash')
 
 let readFile = async function (file) {
   return await new Promise((resolve, reject) => {
@@ -30,4 +31,34 @@ let getFrequencyTable = async function (file, n = 2, offset = 0) {
   return table
 }
 
-module.exports = {getFrequencyTable, readFile}
+let getHuffmanTree = function (freqTable) {
+  let table = Array.from(freqTable)
+  table = _.orderBy(table, ['weigth'], ['desc'])
+  while (table.length > 2) {
+    let leafA = table.pop()
+    let leafB = table.pop()
+    let node = {branchs: [leafA, leafB], weigth: leafA.weigth + leafB.weigth}
+    table.push(node)
+    table = _.orderBy(table, ['weigth'], ['desc'])
+  }
+  return table
+}
+
+let getHuffmanTable = function (freqTable) {
+  let table = {}
+  huffmanTable([0], table, freqTable)
+  huffmanTable([1], table, freqTable)
+  return table
+}
+
+let huffmanTable = function (bits = [], table = {}, freqTable) {
+  if (Array.isArray(_.get(freqTable, [...bits, 'branchs']))) {
+    huffmanTable([...bits, 'branchs', 0], table, freqTable)
+    huffmanTable([...bits, 'branchs', 1], table, freqTable)
+  } else {
+    console.log(JSON.stringify(bits))
+    table[_.filter(bits, v => v !== 'branchs').join('')] = _.get(freqTable, bits)
+  }
+}
+
+module.exports = {getFrequencyTable, readFile, getHuffmanTree, getHuffmanTable}
