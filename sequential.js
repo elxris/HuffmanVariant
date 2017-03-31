@@ -4,8 +4,8 @@ let _ = require('lodash')
 let fs = require('fs')
 let {getFrequencyTable, getHuffmanTree, getHuffmanTable, codingTree, codingPipe} = require.main.require('./lib')
 
-let MIN_SIZE_WORD = 16
-let MAX_SIZE_WORD = MIN_SIZE_WORD
+let MIN_SIZE_WORD = 8
+let MAX_SIZE_WORD = 64
 let WORD_STEP = MIN_SIZE_WORD * 1
 
 ;(async function main () {
@@ -36,7 +36,7 @@ let WORD_STEP = MIN_SIZE_WORD * 1
   /**
    * Podar tabla
    */
-  console.log('PODA', superTable.length)
+  console.log('PODA NODOS INICIALES', superTable.length)
   let subtable = []
   for (let i = 0; i < superTable.length; i++) {
     let podar = false
@@ -47,10 +47,11 @@ let WORD_STEP = MIN_SIZE_WORD * 1
     }
     if (!podar) {
       subtable.push(superTable[i])
-      console.log('PODA', (subtable.length / i).toFixed(2), subtable.length, i, superTable.length)
+      // console.log('PODA', (subtable.length / i).toFixed(2), subtable.length, i, superTable.length)
       continue
     }
   }
+  console.log('PODA NODOS FINALES', subtable.length)
   /**
    * Volver a pesar la tabla
    */
