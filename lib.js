@@ -1,34 +1,39 @@
 'use strict'
 
 let {BitStream} = require('bit-buffer')
-let fs = require('fs')
+const Transform = require('stream').Transform
 let _ = require('lodash')
 
-let readFile = async function (file) {
-  return await new Promise((resolve, reject) => {
-    fs.readFile(file, (err, data) => {
-      if (err) return reject(err)
-      resolve(new BitStream(data))
-    })
-  })
-}
-
-let getFrequencyTable = async function (file, n = 2, offset = 0) {
+let getFrequencyTable = function (stream, n = 64, offset = 0) {
   let table = {}
-  file.index = 0
-  if (offset !== 0) {
-    let bits = ('0'.repeat(n) + file.readBits(offset, false).toString(2)).substr(-n)
-    table[bits] = (table[bits] || 0) + 1
-  }
-  while (file.bitsLeft > n) {
-    let bits = ('0'.repeat(n) + file.readBits(n, false).toString(2)).substr(-n)
-    table[bits] = (table[bits] || 0) + 1
-  }
-  if (file.bitsLeft > 0) {
-    let bits = ('0'.repeat(n) + file.readBits(file.bitsLeft, false).toString(2)).substr(-n)
-    table[bits] = (table[bits] || 0) + 1
-  }
-  return table
+  let pipe = new Transform()
+  let bits = new Uint8Array(n)
+  let count = 0
+  return new Promise(function (resolve, reject) {
+    pipe._transform = function (data, enconding, done) {
+      let bs = new BitStream(data)
+      while (bs.bitsLeft > 0) {
+        if (offset > 0) {
+          bs.readBoolean()
+          offset--
+          continue
+        }
+        bits[count++ % n] = bs.readBoolean()
+        if (count % n === 0) {
+          if (isNaN(++table[Buffer.from(bits)])) {
+            table[Buffer.from(bits)] = 1
+          }
+        }
+      }
+      done()
+    }
+    pipe._flush = function () {
+      table = _.map(table, (f, bits) => ({bits, f}))
+      table = _.orderBy(table, ['f'], ['desc'])
+      resolve(table)
+    }
+    stream.pipe(pipe)
+  })
 }
 
 let getHuffmanTree = function (freqTable) {
@@ -44,21 +49,71 @@ let getHuffmanTree = function (freqTable) {
   return table
 }
 
-let getHuffmanTable = function (freqTable) {
+let getHuffmanTable = function (tree) {
   let table = {}
-  huffmanTable([0], table, freqTable)
-  huffmanTable([1], table, freqTable)
+  huffmanTable([0], table, tree)
+  huffmanTable([1], table, tree)
+
+  _.mapValues(table, (v, k) => {
+    v.code = Buffer.from(Uint8Array.from(k.split('').map(v => Number(v)))).toString()
+    return v
+  })
+
   return table
 }
 
-let huffmanTable = function (bits = [], table = {}, freqTable) {
-  if (Array.isArray(_.get(freqTable, [...bits, 'branchs']))) {
-    huffmanTable([...bits, 'branchs', 0], table, freqTable)
-    huffmanTable([...bits, 'branchs', 1], table, freqTable)
+let huffmanTable = function (bits = [], table = {}, tree) {
+  if (Array.isArray(_.get(tree, [...bits, 'branchs']))) {
+    huffmanTable([...bits, 'branchs', 0], table, tree)
+    huffmanTable([...bits, 'branchs', 1], table, tree)
   } else {
-    console.log(JSON.stringify(bits))
-    table[_.filter(bits, v => v !== 'branchs').join('')] = _.get(freqTable, bits)
+    table[_.filter(bits, v => v !== 'branchs').join('')] = _.get(tree, bits)
   }
 }
 
-module.exports = {getFrequencyTable, readFile, getHuffmanTree, getHuffmanTable}
+let codingTree = function (table) {
+  // Los bits son ahora las llaves de codificación
+  table = _.mapKeys(table, (v, k) => {
+    return v.bits
+  })
+
+  let tree = []
+  _.forEach(table, (value, key) => {
+    _.set(tree, Array.from(Uint8Array.from(Buffer.from(key))).map(v => v.toString()), value)
+  })
+  return tree
+}
+
+let codingPipe = function (codingTree) {
+  let pipe = new Transform()
+  let token = []
+  let byte = new BitStream(new Buffer(8))
+  pipe._transform = function (data, enconding, done) {
+    let bs = new BitStream(data)
+    while (bs.bitsLeft > 0) {
+      token.push(Number(bs.readBoolean()).toString())
+      if (_.get(codingTree, token)) {
+        let code = _.get(codingTree, [...token, 'code'])
+        if (code !== undefined) {
+          let bits = Array.from(Uint8Array.from(Buffer.from(code)))
+          while (bits.length > 0) {
+            byte.writeBoolean(bits.shift())
+            if (byte.index === 8) {
+              byte.index = 0
+              this.push(Buffer.of(byte.readBits(8, false)))
+              byte.index = 0
+            }
+          }
+          token = []
+        }
+      } else {
+        token = []
+        console.error('El token', token, 'no ha sido encontrado en el árbol.')
+      }
+    }
+    done()
+  }
+  return pipe
+}
+
+module.exports = {getFrequencyTable, getHuffmanTree, getHuffmanTable, codingTree, codingPipe}

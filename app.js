@@ -1,7 +1,8 @@
 'use strict'
 
 let cp = require('child_process')
-let NUM = Number(process.env.NUM) || 4
+let os = require('os')
+let NUM = Math.max(Number(process.env.NUM) || os.cpus().length, 2)
 
 let childs = []
 

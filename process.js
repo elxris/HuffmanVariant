@@ -1,6 +1,7 @@
 'use strict'
 
-let {readFile, getFrequencyTable} = require.main.require('./lib')
+const fs = require('fs')
+let {getFrequencyTable} = require.main.require('./lib')
 
 let NUM = Number(process.env.NUM) || 4
 let RANK = Number(process.env.RANK) || 0
@@ -33,7 +34,7 @@ let sendMessage = function ({to = 0, data = {}}) {
 
 ;(async function main () {
   console.log(`Hello from ${RANK}-${NUM}`)
-  let Google = await readFile('./files/Google.htm')
+  let Google = fs.createReadStream('./files/Google.htm')
   if (RANK === 0) {
     let count = 0
     for (let n = 2; n <= 16; n++) {

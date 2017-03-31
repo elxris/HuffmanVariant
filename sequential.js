@@ -1,62 +1,80 @@
 'use strict'
 
 let _ = require('lodash')
-let {readFile, getFrequencyTable, getHuffmanTree, getHuffmanTable} = require.main.require('./lib')
+let fs = require('fs')
+let {getFrequencyTable, getHuffmanTree, getHuffmanTable, codingTree, codingPipe} = require.main.require('./lib')
+
+let MIN_SIZE_WORD = 16
+let MAX_SIZE_WORD = MIN_SIZE_WORD
+let WORD_STEP = MIN_SIZE_WORD * 1
 
 ;(async function main () {
-  let Google = await readFile('./files/Google.htm')
   // Get frequency tables
   let tables = []
-  for (let n = 4; n <= 16; n = n + 2) {
-    let best = []
-    for (let offset = 0; offset < 1; offset++) {
-      let table = await getFrequencyTable(Google, n, offset)
-      table = _.map(table, (f, bites) => ({bites, f}))
-      table = _.orderBy(table, ['f'], ['desc'])
-      if (_.get(_.head(best), 'f', 0) < _.get(_.head(table), 'f', 0)) {
-        best = table
-      }
-    }
-    tables[n] = best
+  for (let n = MIN_SIZE_WORD; n <= MAX_SIZE_WORD; n += WORD_STEP) {
+    let Google = fs.createReadStream('./files/Google.htm')
+    let table = await getFrequencyTable(Google, n)
+
+    tables[n] = table
   }
-  // console.log(tables)
   /**
    * Generar super tabla de huffman
    */
-  for (let n = 4; n <= 16; n = n + 2) {
+  for (let n = MIN_SIZE_WORD; n <= MAX_SIZE_WORD; n += WORD_STEP) {
     let table = tables[n]
     tables[n] = _.map(table, (item) => {
-      let {bites, f} = item
-      return {bites, f, weigth: f * ((n - 2) / 2)}
+      let {bits, f} = item
+      return {bits, f, weigth: f * n}
     })
   }
+
   let superTable = []
-  for (let n = 4; n <= 16; n = n + 2) {
+  for (let n = MIN_SIZE_WORD; n <= MAX_SIZE_WORD; n += WORD_STEP) {
     superTable = superTable.concat(tables[n])
   }
   superTable = _.orderBy(superTable, ['weigth'], ['desc'])
-  // console.log(superTable)
   /**
    * Podar tabla
    */
+  console.log('PODA', superTable.length)
   let subtable = []
   for (let i = 0; i < superTable.length; i++) {
     let podar = false
-    let bites = _.get(superTable[i], 'bites')
-    for (let j = 0; j < i && !podar; j++) {
-      let prevBites = _.get(superTable[j], 'bites')
-      podar = bites.startsWith(prevBites)
+    let bits = _.get(superTable[i], 'bits')
+    for (let j = 0; j < subtable.length && !podar; j++) {
+      let prevBites = _.get(subtable[j], 'bits')
+      podar = bits.startsWith(prevBites)
     }
     if (!podar) {
       subtable.push(superTable[i])
+      console.log('PODA', (subtable.length / i).toFixed(2), subtable.length, i, superTable.length)
+      continue
     }
   }
   /**
+   * Volver a pesar la tabla
+   */
+  for (let i = 0; i < subtable.length; i++) {
+    for (let k = 0; k < subtable.length; k++) {
+      if (i === k) continue
+      if (subtable[i].bits.startsWith(subtable[k])) {
+        subtable[i].f -= subtable[k].f
+        subtable[i].weigth = subtable[i].k * subtable[i].bits.length
+      }
+    }
+  }
+
+  /**
    * Generar árbol de huffman
    */
-  console.log('TREE', JSON.stringify(subtable))
   let tree = getHuffmanTree(subtable)
-  console.log('TREE', tree)
-  let ht = getHuffmanTable(tree)
-  console.log(ht)
+  let htable = getHuffmanTable(tree)
+  // console.log('TREE', JSON.stringify(htable))
+
+  /**
+   * Generar árbol codificador
+   */
+  let codificador = codingTree(htable)
+  let Google = fs.createReadStream('./files/Google.htm')
+  Google.pipe(codingPipe(codificador)).pipe(fs.createWriteStream('./Google.huff'))
 })().catch(console.error)
