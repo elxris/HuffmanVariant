@@ -8,7 +8,7 @@ let NUM = Number(process.env.NUM) || 4
 let RANK = Number(process.env.RANK) || 0
 
 let MIN_SIZE_WORD = 8
-let MAX_SIZE_WORD = 32
+let MAX_SIZE_WORD = 64
 let WORD_STEP = MIN_SIZE_WORD * 1
 
 let queue = []
@@ -50,10 +50,6 @@ let sendMessage = function ({to = 0, data = {}}) {
     let superTable = []
     for (let n = MIN_SIZE_WORD; n <= MAX_SIZE_WORD; n += WORD_STEP) {
       let table = (await (waitMessage.next().value)).data.table
-      table = _.map(table, (item) => {
-        let {bits, f} = item
-        return {bits, f, weigth: f * bits.length}
-      })
       superTable = superTable.concat(table)
     }
     superTable = _.orderBy(superTable, ['weigth'], ['desc'])
@@ -61,7 +57,7 @@ let sendMessage = function ({to = 0, data = {}}) {
     /**
      * Podar tabla
      */
-    console.log('PODA', superTable.length)
+     console.log('PODA NODOS INICIALES', superTable.length)
     let subtable = []
     for (let i = 0; i < superTable.length; i++) {
       let podar = false
@@ -72,10 +68,11 @@ let sendMessage = function ({to = 0, data = {}}) {
       }
       if (!podar) {
         subtable.push(superTable[i])
-        console.log('PODA', (subtable.length / i).toFixed(2), subtable.length, i, superTable.length)
+        // console.log('PODA', (subtable.length / i).toFixed(2), subtable.length, i, superTable.length)
         continue
       }
     }
+    console.log('PODA NODOS FINALES', subtable.length)
     /**
      * Volver a pesar la tabla
      */
@@ -120,6 +117,10 @@ let sendMessage = function ({to = 0, data = {}}) {
       } else if (task === 'getTable') {
         let {n, offset} = data
         let table = await getFrequencyTable(Google, n, offset)
+        table = _.map(table, (item) => {
+          let {bits, f} = item
+          return {bits, f, weigth: f * bits.length}
+        })
         // console.log(table)
         sendMessage({to: 0, data: {table: table}})
       }
